@@ -12,6 +12,29 @@ body {
     text-align: center;
     width: 700px;
     padding: 20px;
+    position: relative;
+}
+
+.timer {
+    font-size: 32px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+#time {
+    color: #2196F3;
+}
+
+#time.warning {
+    color: #f44336;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
 }
 
 .score-container {
@@ -37,7 +60,11 @@ body {
     width: 100%;
     height: 100%;
     background-color: #4CAF50;
-    transition: width linear;
+    transition: width linear, background-color 0.3s ease;
+}
+
+#combo-timer-bar.error {
+    background-color: #f44336;
 }
 
 .numbers-container {
@@ -62,7 +89,7 @@ body {
     font-size: 48px;
     font-weight: bold;
     position: absolute;
-    transition: all 0.4s ease;
+    transition: all 0.25s ease;
 }
 
 .number:nth-child(1) { left: 30px; }
@@ -90,4 +117,59 @@ body {
 .fading-out {
     opacity: 0;
     transform: scale(0.8) translateX(-140px);
+}
+
+#score, #combo {
+    font-size: 32px;
+    color: #2196F3;
+    margin: 0 5px;
+}
+
+.game-over {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.game-over.hidden {
+    display: none;
+}
+
+.game-over-content {
+    background-color: white;
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+}
+
+.game-over-content h2 {
+    color: #f44336;
+    font-size: 48px;
+    margin: 0 0 20px 0;
+}
+
+.game-over-content p {
+    font-size: 24px;
+    margin: 0;
+}
+
+#final-score {
+    color: #2196F3;
+    font-size: 32px;
+    font-weight: bold;
+}
+
+.restart-instruction {
+    margin-top: 20px !important;
+    color: #666;
+    font-size: 18px !important;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
 }

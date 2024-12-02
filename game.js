@@ -1,20 +1,71 @@
 class Game {
     constructor() {
-        this.numbers = [5, 3, 7, 2];
+        this.initGame();
+    }
+
+    initGame() {
+        this.numbers = Array(4).fill(0).map(() => this.generateNewNumber());
         this.isAnimating = false;
         this.score = 0;
         this.combo = 0;
+        this.isErrorCombo = false;
         this.comboTimer = null;
-        this.COMBO_TIME = 700; // ms
-        this.lastCorrectAnswer = null; // 最後に正解した答えを記録
+        this.gameTimer = null;
+        this.timeLeft = 30;
+        this.isGameOver = false;
+        this.isGameStarted = false;
+        this.COMBO_TIME = 700;
+        this.ANIMATION_TIME = 250;
+        this.lastCorrectAnswer = null;
+        this.pendingAnimation = false;
         
-        // 音声の初期化
         this.okSound = new Audio('se/ok.mp3');
         this.ngSound = new Audio('se/ng.mp3');
         
         this.updateDisplay();
         this.setupEventListeners();
         this.updateScore();
+        
+        document.getElementById('time').textContent = this.timeLeft;
+        document.getElementById('time').classList.remove('warning');
+    }
+
+    startGameTimer() {
+        if (this.gameTimer) return;
+        
+        this.isGameStarted = true;
+        this.gameTimer = setInterval(() => {
+            this.timeLeft--;
+            const timeDisplay = document.getElementById('time');
+            timeDisplay.textContent = this.timeLeft;
+
+            if (this.timeLeft <= 10) {
+                timeDisplay.classList.add('warning');
+            }
+
+            if (this.timeLeft <= 0) {
+                this.endGame();
+            }
+        }, 1000);
+    }
+
+    endGame() {
+        this.isGameOver = true;
+        clearInterval(this.gameTimer);
+        if (this.comboTimer) {
+            clearTimeout(this.comboTimer);
+        }
+
+        const gameOver = document.getElementById('game-over');
+        const finalScore = document.getElementById('final-score');
+        finalScore.textContent = this.score;
+        gameOver.classList.remove('hidden');
+    }
+
+    restartGame() {
+        const gameOver = document.getElementById('game-over');
+        gameOver.classList.add('hidden');
+        this.initGame();
     }
 
     updateDisplay() {
@@ -34,7 +85,7 @@ class Game {
         document.getElementById('combo').textContent = this.combo;
     }
 
-    startComboTimer() {
+    startComboTimer(isError = false) {
         if (this.comboTimer) {
             clearTimeout(this.comboTimer);
         }
@@ -42,8 +93,13 @@ class Game {
         const timerBar = document.getElementById('combo-timer-bar');
         timerBar.style.transition = 'none';
         timerBar.style.width = '100%';
+        
+        if (isError) {
+            timerBar.classList.add('error');
+        } else {
+            timerBar.classList.remove('error');
+        }
 
-        // Force reflow
         timerBar.offsetHeight;
 
         timerBar.style.transition = `width ${this.COMBO_TIME}ms linear`;
@@ -51,16 +107,16 @@ class Game {
 
         this.comboTimer = setTimeout(() => {
             this.combo = 0;
+            this.isErrorCombo = false;
             this.updateScore();
             timerBar.style.transition = 'none';
             timerBar.style.width = '0%';
+            timerBar.classList.remove('error');
         }, this.COMBO_TIME);
     }
 
-    calculateScore() {
-        // 基本スコアは1点
-        // コンボ数に応じて指数関数的に増加 (2のコンボ数乗)
-        return Math.pow(2, this.combo);
+    calculateScore(combo) {
+        return Math.pow(2, combo);
     }
 
     generateNewNumber() {
@@ -88,41 +144,49 @@ class Game {
     }
 
     checkAnswer(input) {
+        if (this.isGameOver) return false;
+
+        if (!this.isGameStarted) {
+            this.startGameTimer();
+        }
+
         const currentAnswer = this.getCurrentAnswer();
         const nextAnswer = this.getNextAnswer();
         const inputNum = parseInt(input);
 
-        // アニメーション中に同じ答えを連打できないようにする
         if (this.isAnimating && inputNum === this.lastCorrectAnswer) {
             return false;
         }
 
-        // アニメーション中でも次の問題の正解は受け付ける
-        if (this.isAnimating && inputNum === nextAnswer) {
-            this.playSound(true);
-            return true;
-        }
-
-        const isCorrect = inputNum === currentAnswer;
+        const isCorrect = inputNum === currentAnswer || (this.isAnimating && inputNum === nextAnswer);
 
         if (isCorrect) {
-            this.lastCorrectAnswer = currentAnswer; // 正解した答えを記録
-            this.combo++;
-            const points = this.calculateScore();
-            this.score += points;
-            this.startComboTimer();
-            this.playSound(true);
-        } else {
-            // 不正解の場合、正解時と同じ点数を減点
-            const points = this.calculateScore();
-            this.score = Math.max(0, this.score - points);
-            this.combo = 0;
-            if (this.comboTimer) {
-                clearTimeout(this.comboTimer);
-                const timerBar = document.getElementById('combo-timer-bar');
-                timerBar.style.transition = 'none';
-                timerBar.style.width = '0%';
+            if (this.isErrorCombo) {
+                this.combo = 0;
+                this.isErrorCombo = false;
             }
+            const points = this.calculateScore(this.combo);
+            this.score += points;
+            this.combo++;
+            this.lastCorrectAnswer = inputNum;
+            this.startComboTimer(false);
+            this.playSound(true);
+
+            if (this.isAnimating && inputNum === nextAnswer) {
+                this.pendingAnimation = true;
+            }
+        } else {
+            const points = this.calculateScore(this.combo);
+            this.score -= points;
+            
+            if (!this.isErrorCombo) {
+                this.combo = 1;
+                this.isErrorCombo = true;
+            } else {
+                this.combo++;
+            }
+            
+            this.startComboTimer(true); // コンボタイマーの更新のみ
             this.playSound(false);
         }
 
@@ -131,60 +195,65 @@ class Game {
     }
 
     async slideNumbers() {
-        if (this.isAnimating) return;
+        if (this.isAnimating || this.isGameOver) return;
         this.isAnimating = true;
 
         const numbers = document.querySelectorAll('.number');
         const newNumber = this.generateNewNumber();
 
-        // 1. 最初の数字をフェードアウト
         numbers[0].classList.add('fading-out');
 
-        // 2. 少し待ってから残りの数字をスライド
-        await new Promise(resolve => setTimeout(resolve, 150));
+        await new Promise(resolve => setTimeout(resolve, this.ANIMATION_TIME / 2));
 
         for (let i = 1; i < numbers.length; i++) {
             numbers[i].classList.add('sliding');
         }
 
-        // 3. スライドが完了するのを待つ
-        await new Promise(resolve => setTimeout(resolve, 400));
+        await new Promise(resolve => setTimeout(resolve, this.ANIMATION_TIME));
 
-        // 4. 配列を更新
         this.numbers.shift();
         this.numbers.push(newNumber);
 
-        // 5. DOMを更新して新しい数字を追加
         this.updateDisplay();
         const newNumberElement = document.querySelectorAll('.number')[3];
         newNumberElement.classList.add('new-number');
 
-        // 6. 新しい数字をフェードイン
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 newNumberElement.classList.remove('new-number');
             });
         });
 
-        // 7. アニメーション完了を待つ
-        await new Promise(resolve => setTimeout(resolve, 400));
+        await new Promise(resolve => setTimeout(resolve, this.ANIMATION_TIME));
         this.isAnimating = false;
-        this.lastCorrectAnswer = null; // アニメーション完了時に記録をリセット
+        this.lastCorrectAnswer = null;
+
+        if (this.pendingAnimation) {
+            this.pendingAnimation = false;
+            this.slideNumbers();
+        }
     }
 
     setupEventListeners() {
-        document.addEventListener('keydown', (event) => {
+        this.keydownHandler = (event) => {
             const key = event.key;
+            if (this.isGameOver) {
+                if (key === ' ') {
+                    this.restartGame();
+                }
+                return;
+            }
+
             if (/^[0-9]$/.test(key)) {
                 if (this.checkAnswer(key)) {
                     this.slideNumbers();
                 }
             }
-        });
+        };
+        document.addEventListener('keydown', this.keydownHandler);
     }
 }
 
-// ゲームの初期化
 window.onload = () => {
     new Game();
 };

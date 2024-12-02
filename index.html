@@ -8,6 +8,7 @@
 </head>
 <body>
     <div class="game-container">
+        <div class="timer">Time: <span id="time">30</span></div>
         <div class="score-container">
             <div class="score">Score: <span id="score">0</span></div>
             <div class="combo">Combo: <span id="combo">0</span></div>
@@ -23,6 +24,13 @@
         </div>
         <div class="instruction">
             左の2つの数字を足した時の一の位を入力してください
+        </div>
+        <div id="game-over" class="game-over hidden">
+            <div class="game-over-content">
+                <h2>TIME UP!</h2>
+                <p>Final Score: <span id="final-score">0</span></p>
+                <p class="restart-instruction">Press SPACE to play again</p>
+            </div>
         </div>
     </div>
     <script src="game.js"></script>
